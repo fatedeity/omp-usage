@@ -18,7 +18,7 @@ export const PROVIDER_DEFINITIONS: readonly UsageProviderDefinition[] = [
   {
     id: PROVIDER_ID,
     displayName: "智谱 GLM 编程套餐",
-    baseUrl: "https://open.bigmodel.cn/api/paas/v4",
+    baseUrl: "https://open.bigmodel.cn/api/coding/paas/v4",
     api: "openai-completions",
     fetchUsage: fetchZhipuUsage,
   },
