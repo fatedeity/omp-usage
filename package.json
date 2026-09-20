@@ -1,0 +1,27 @@
+{
+    "name": "omp-usage-zhipu-coding-plan",
+    "version": "0.1.0",
+    "description": "在 OMP 中显示智谱 GLM Coding Plan 额度。",
+    "type": "module",
+    "files": [
+        "src",
+        "README.md"
+    ],
+    "scripts": {
+        "test": "bun test",
+        "typecheck": "tsc --noEmit"
+    },
+    "omp": {
+        "extensions": [
+            "./src/index.ts"
+        ]
+    },
+    "devDependencies": {
+        "@oh-my-pi/pi-coding-agent": "18.2.6",
+        "@types/bun": "^1.3.0",
+        "typescript": "^5.9.0"
+    },
+    "peerDependencies": {
+        "@oh-my-pi/pi-coding-agent": ">=18.2.6"
+    }
+}
