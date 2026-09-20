@@ -281,7 +281,10 @@ export async function fetchZhipuUsage(
         return null;
     }
 }
-export function formatUsageReport(report: UsageReport): string {
+export function formatUsageReport(
+    report: UsageReport,
+    title = "额度",
+): string {
     const plan = report.metadata?.planType ?? "未知";
     const formatNumber = new Intl.NumberFormat("zh-CN");
     const unitLabels: Record<UsageAmount["unit"], string> = {
@@ -290,7 +293,7 @@ export function formatUsageReport(report: UsageReport): string {
         requests: "次",
         percent: "%",
     };
-    const lines = [`GLM 编程套餐（${plan}）`];
+    const lines = [`${title}（${plan}）`];
 
     for (const limit of report.limits) {
         const amount = limit.amount;

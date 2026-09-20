@@ -7,6 +7,10 @@ import {
   PROVIDER_ID,
   USAGE_ENDPOINT,
 } from "../src/usage";
+import {
+  findProviderDefinition,
+  PROVIDER_DEFINITIONS,
+} from "../src/provider-registry";
 
 const fetchedAt = 1_800_000_000_000;
 
@@ -50,6 +54,17 @@ const payload = {
     ],
   },
 };
+describe("provider 注册表", () => {
+  test("包含智谱 provider 且可按 ID 查询", () => {
+    expect(PROVIDER_DEFINITIONS.map(provider => provider.id)).toContain(
+      PROVIDER_ID,
+    );
+    expect(findProviderDefinition(PROVIDER_ID)?.displayName).toBe(
+      "智谱 GLM 编程套餐",
+    );
+  });
+});
+
 
 describe("parseZhipuUsage", () => {
   test("映射 5 小时、7 天和月度工具调用额度", () => {
@@ -119,7 +134,7 @@ describe("formatUsageReport", () => {
     const report = parseZhipuUsage(payload, fetchedAt);
     expect(report).not.toBeNull();
 
-    const formatted = formatUsageReport(report!);
+    const formatted = formatUsageReport(report!, "GLM 编程套餐");
     expect(formatted).toContain("GLM 编程套餐（lite）");
     expect(formatted).toContain(
       "5 小时 Token：120,000 / 500,000 Token（已用 24.0%）",

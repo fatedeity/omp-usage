@@ -1,54 +1,75 @@
 import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
 
 import {
-    fetchZhipuUsage,
-    formatUsageReport,
-    PROVIDER_ID,
-    USAGE_ENDPOINT,
-} from "./usage.js";
+  findProviderDefinition,
+  PROVIDER_DEFINITIONS,
+  PROVIDER_ENDPOINTS,
+} from "./provider-registry.js";
+import { formatUsageReport } from "./usage.js";
 
 async function readConfiguredApiKey(
-    pi: ExtensionAPI,
+  pi: ExtensionAPI,
+  providerId: string,
 ): Promise<string | undefined> {
-    const result = await pi.exec("omp", ["token", PROVIDER_ID, "--raw"], {
-        timeout: 10_000,
-    });
-    if (result.code !== 0) return undefined;
-    const apiKey = result.stdout.trim();
-    return apiKey || undefined;
+  const result = await pi.exec("omp", ["token", providerId, "--raw"], {
+    timeout: 10_000,
+  });
+  if (result.code !== 0) return undefined;
+  const apiKey = result.stdout.trim();
+  return apiKey || undefined;
 }
 
-export default function registerZhipuUsage(pi: ExtensionAPI): void {
-    pi.registerProvider(PROVIDER_ID, {
-        baseUrl: "https://open.bigmodel.cn/api/paas/v4",
-        api: "openai-completions",
-        usage: {
-            id: PROVIDER_ID,
-            async fetchUsage(params, { fetch }) {
-                return fetchZhipuUsage(params.credential.apiKey, fetch);
-            },
+export default function registerUsageExtension(pi: ExtensionAPI): void {
+  for (const provider of PROVIDER_DEFINITIONS) {
+    pi.registerProvider(provider.id, {
+      baseUrl: provider.baseUrl,
+      api: provider.api,
+      usage: {
+        id: provider.id,
+        async fetchUsage(params, { fetch }) {
+          return provider.fetchUsage(params.credential.apiKey, fetch);
         },
+      },
     });
+  }
 
-    pi.registerCommand("glm-usage", {
-        description: "显示 GLM 编程套餐额度",
-        handler: async (_args, ctx) => {
-            const apiKey = await readConfiguredApiKey(pi);
-            const report = await fetchZhipuUsage(apiKey, fetch);
+  pi.registerCommand("omp-usage", {
+    description: "查询 provider 额度",
+    handler: async (args, ctx) => {
+      const defaultProvider = PROVIDER_DEFINITIONS[0];
+      const providerId = args.trim() || defaultProvider?.id;
+      if (!providerId) {
+        ctx.ui.notify("当前没有可用的额度 provider。", "error");
+        return;
+      }
 
-            if (!report) {
-                ctx.ui.notify(
-                    "无法读取 GLM 编程套餐额度，请检查 zhipu-coding-plan 凭据和网络连接。",
-                    "error",
-                );
-                return;
-            }
+      const provider = findProviderDefinition(providerId);
+      if (!provider) {
+        const supported = PROVIDER_DEFINITIONS.map(item => item.id).join(", ");
+        ctx.ui.notify(
+          `不支持 provider：${providerId}。当前支持：${supported}。`,
+          "error",
+        );
+        return;
+      }
 
-            ctx.ui.notify(formatUsageReport(report), "info");
-        },
-    });
+      const apiKey = await readConfiguredApiKey(pi, provider.id);
+      const report = await provider.fetchUsage(apiKey, fetch);
+      if (!report) {
+        ctx.ui.notify(
+          `无法读取 ${provider.displayName} 额度，请检查凭据和网络连接。`,
+          "error",
+        );
+        return;
+      }
 
+      ctx.ui.notify(formatUsageReport(report, provider.displayName), "info");
+    },
+  });
+
+  for (const [providerId, endpoint] of Object.entries(PROVIDER_ENDPOINTS)) {
     pi.logger?.debug?.(
-        `[omp-usage-zhipu-coding-plan] usage endpoint: ${USAGE_ENDPOINT}`,
+      `[omp-usage] provider=${providerId} usage endpoint=${endpoint}`,
     );
+  }
 }

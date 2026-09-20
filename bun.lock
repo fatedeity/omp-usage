@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "omp-usage-zhipu-coding-plan",
+      "name": "omp-usage",
       "devDependencies": {
         "@oh-my-pi/pi-coding-agent": "18.2.6",
         "@types/bun": "^1.3.0",
