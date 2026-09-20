@@ -94,6 +94,35 @@ describe("parseZhipuUsage", () => {
     expect(monthlyTools?.label).toBe("1 个月 工具调用");
     expect(monthlyTools?.amount.unit).toBe("requests");
   });
+  test("将智谱接口的 1 表示为 1% 而不是 100%", () => {
+    const report = parseZhipuUsage(
+      {
+        success: true,
+        data: {
+          limits: [
+            {
+              type: "CREDIT_LIMIT",
+              unit: 3,
+              number: 5,
+              usage: 2_000,
+              currentValue: 0,
+              remaining: 1_999,
+              percentage: 1,
+            },
+          ],
+        },
+      },
+      fetchedAt,
+    );
+
+    expect(report?.limits[0]?.amount).toMatchObject({
+      used: 0,
+      limit: 2_000,
+      remaining: 1_999,
+      usedFraction: 0.01,
+    });
+  });
+
 
   test("绝对计数缺失时回退到百分比额度", () => {
     const report = parseZhipuUsage(

@@ -79,11 +79,15 @@ function clampFraction(value: number): number {
     return Math.min(1, Math.max(0, value));
 }
 
-function normalizePercentage(value: unknown): number | undefined {
+function normalizePercentage(
+    value: unknown,
+    allowFraction = false,
+): number | undefined {
     const number = finiteNumber(value);
     if (number === undefined) return undefined;
-    // 智谱接口文档使用 0..100；同时兼容 0..1 的响应，不改变文档约定的含义。
-    const percentage = number >= 0 && number <= 1 ? number * 100 : number;
+    // 智谱接口文档使用 0..100。只有没有绝对计数时，才兼容 0..1 的小数响应。
+    const percentage =
+        allowFraction && number >= 0 && number <= 1 ? number * 100 : number;
     return Math.min(100, Math.max(0, percentage));
 }
 
@@ -168,10 +172,11 @@ function buildAmount(
     const total = finiteNumber(item.usage);
     const current = finiteNumber(item.currentValue);
     const reportedRemaining = finiteNumber(item.remaining);
-    const percentage = normalizePercentage(item.percentage);
 
     const hasAbsoluteValues =
         total !== undefined || current !== undefined || reportedRemaining !== undefined;
+    const percentage = normalizePercentage(item.percentage, !hasAbsoluteValues);
+
 
     if (!hasAbsoluteValues && percentage === undefined) return null;
 
