@@ -88,11 +88,30 @@ describe("parseZhipuUsage", () => {
     expect(fiveHour?.window.resetsAt).toBe(fetchedAt + 3_600_000);
 
     const weekly = report?.limits[1];
-    expect(weekly?.window).toMatchObject({ id: "7d", label: "7 天" });
+    expect(weekly?.window).toMatchObject({ id: "7d", label: "7 days" });
 
     const monthlyTools = report?.limits[2];
-    expect(monthlyTools?.label).toBe("1 个月 工具调用");
+    expect(monthlyTools?.label).toBe("1 month tool calls");
     expect(monthlyTools?.amount.unit).toBe("requests");
+  });
+  test("按窗口时长升序输出额度（5 小时在前）", () => {
+    const report = parseZhipuUsage(
+      {
+        ...payload,
+        data: {
+          ...payload.data,
+          limits: [payload.data.limits[1], payload.data.limits[0], payload.data.limits[2]],
+        },
+      },
+      fetchedAt,
+    );
+
+    expect(report?.limits.map(limit => limit.window.id)).toEqual(["5h", "7d", "1mo"]);
+    expect(report?.limits.map(limit => limit.label)).toEqual([
+      "5 hours",
+      "7 days",
+      "1 month tool calls",
+    ]);
   });
   test("将智谱接口的 1 表示为 1% 而不是 100%", () => {
     const report = parseZhipuUsage(
@@ -166,7 +185,7 @@ describe("formatUsageReport", () => {
     const formatted = formatUsageReport(report!, "GLM 编程套餐");
     expect(formatted).toContain("GLM 编程套餐（lite）");
     expect(formatted).toContain(
-      "5 小时 Token：120,000 / 500,000 Token（已用 24.0%）",
+      "5 hours：120,000 / 500,000 Token（已用 24.0%）",
     );
     expect(formatted).toContain(
       `重置时间：${new Date(fetchedAt + 3_600_000).toLocaleString("zh-CN")}`,

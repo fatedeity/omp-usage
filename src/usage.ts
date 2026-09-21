@@ -100,7 +100,7 @@ function resolveWindow(item: ZhipuLimitItem): UsageWindow {
     if (type === "TIME_LIMIT" && unit === 5 && number === 1) {
         return {
             id: "1mo",
-            label: "1 个月",
+            label: "1 month",
             durationMs: 30 * 24 * 60 * 60 * 1000,
             resetsAt: finiteNumber(item.nextResetTime),
         };
@@ -109,7 +109,7 @@ function resolveWindow(item: ZhipuLimitItem): UsageWindow {
     if (unit === 3) {
         return {
             id: `${number}h`,
-            label: number === 1 ? "1 小时" : `${number} 小时`,
+            label: number === 1 ? "1 hour" : `${number} hours`,
             durationMs: number * 60 * 60 * 1000,
             resetsAt: finiteNumber(item.nextResetTime),
         };
@@ -119,7 +119,7 @@ function resolveWindow(item: ZhipuLimitItem): UsageWindow {
         const days = number * 7;
         return {
             id: `${days}d`,
-            label: days === 7 ? "7 天" : `${number} 周`,
+            label: days === 7 ? "7 days" : `${number} week${number === 1 ? "" : "s"}`,
             durationMs: days * 24 * 60 * 60 * 1000,
             resetsAt: finiteNumber(item.nextResetTime),
         };
@@ -128,7 +128,7 @@ function resolveWindow(item: ZhipuLimitItem): UsageWindow {
     if (unit === 1) {
         return {
             id: `${number}d`,
-            label: number === 1 ? "1 天" : `${number} 天`,
+            label: number === 1 ? "1 day" : `${number} days`,
             durationMs: number * 24 * 60 * 60 * 1000,
             resetsAt: finiteNumber(item.nextResetTime),
         };
@@ -137,7 +137,7 @@ function resolveWindow(item: ZhipuLimitItem): UsageWindow {
     if (unit === 5) {
         return {
             id: `${number}m`,
-            label: number === 1 ? "1 分钟" : `${number} 分钟`,
+            label: number === 1 ? "1 minute" : `${number} minutes`,
             durationMs: number * 60 * 1000,
             resetsAt: finiteNumber(item.nextResetTime),
         };
@@ -146,7 +146,7 @@ function resolveWindow(item: ZhipuLimitItem): UsageWindow {
     const id = unit === undefined ? `custom-${number}` : `unit-${unit}-${number}`;
     return {
         id,
-        label: `自定义窗口 (${id})`,
+        label: `Custom window (${id})`,
         resetsAt: finiteNumber(item.nextResetTime),
     };
 }
@@ -157,12 +157,12 @@ function metricForType(type: unknown): {
     label: string;
 } {
     if (type === "CREDIT_LIMIT") {
-        return { id: "credits", unit: "credits", label: "额度" };
+        return { id: "credits", unit: "credits", label: "" };
     }
     if (type === "TIME_LIMIT") {
-        return { id: "requests", unit: "requests", label: "工具调用" };
+        return { id: "requests", unit: "requests", label: "tool calls" };
     }
-    return { id: "tokens", unit: "tokens", label: "Token" };
+    return { id: "tokens", unit: "tokens", label: "" };
 }
 
 function buildAmount(
@@ -223,7 +223,7 @@ function buildLimit(
     if (!amount) return null;
 
     const isExhausted = amount.limit > 0 && amount.remaining <= 0;
-    const label = `${window.label} ${metric.label}`;
+    const label = metric.label ? `${window.label} ${metric.label}` : window.label;
 
     return {
         id: `${PROVIDER_ID}:${metric.id}:${window.id}:${index}`,
@@ -252,8 +252,11 @@ export function parseZhipuUsage(
 
     const limits = rawLimits
         .map((item, index) => buildLimit(asRecord(item) ?? {}, index))
-        .filter((item): item is UsageLimit => item !== null);
-
+        .filter((item): item is UsageLimit => item !== null)
+        .sort(
+            (a, b) =>
+                (a.window.durationMs ?? Infinity) - (b.window.durationMs ?? Infinity),
+        );
     if (limits.length === 0) return null;
 
     const planType = typeof data?.level === "string" ? data.level : undefined;
