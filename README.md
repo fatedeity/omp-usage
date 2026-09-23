@@ -57,6 +57,14 @@ omp --extension /path/to/omp-usage
 /omp-usage zhipu-coding-plan
 ```
 
+使用 `all` 进入聚合模式，同时显示注册表 provider 和 OMP 内置账号（如 `openai-codex` 的 ChatGPT 订阅）的额度：
+
+```text
+/omp-usage all
+```
+
+聚合模式通过 `omp usage --json --redact` 透传内置账号报告，凭据刷新与缓存由 OMP 处理；扩展已覆盖的 provider 不会重复显示，metadata 中的账号字段（邮箱、账号 ID 等）会被剥离。
+
 命令会通过 `omp token` 读取对应 provider 的凭据，请求额度接口，并显示套餐、当前用量、剩余额度和重置时间。凭据只保存在内存中，不会出现在通知或日志里。
 
 如果希望在每次 OMP 会话中自动加载，可以在 `~/.omp/agent/config.yml` 中配置扩展路径：

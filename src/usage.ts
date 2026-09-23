@@ -289,18 +289,19 @@ export async function fetchZhipuUsage(
         return null;
     }
 }
+const UNIT_LABELS: Record<UsageAmount["unit"], string> = {
+    tokens: "Token",
+    credits: "额度",
+    requests: "次",
+    percent: "%",
+};
+
 export function formatUsageReport(
     report: UsageReport,
     title = "额度",
 ): string {
     const plan = report.metadata?.planType ?? "未知";
     const formatNumber = new Intl.NumberFormat("zh-CN");
-    const unitLabels: Record<UsageAmount["unit"], string> = {
-        tokens: "Token",
-        credits: "额度",
-        requests: "次",
-        percent: "%",
-    };
     const lines = [`${title}（${plan}）`];
 
     for (const limit of report.limits) {
@@ -312,9 +313,59 @@ export function formatUsageReport(
             ? new Date(limit.window.resetsAt).toLocaleString("zh-CN")
             : "未知";
         lines.push(
-            `${limit.label}：${used} / ${total} ${unitLabels[amount.unit]}（已用 ${percent}），重置时间：${reset}`,
+            `${limit.label}：${used} / ${total} ${UNIT_LABELS[amount.unit]}（已用 ${percent}），重置时间：${reset}`,
         );
     }
 
     return lines.join("\n");
+}
+
+function isUsableLimit(value: unknown): boolean {
+    const item = asRecord(value);
+    const amount = asRecord(item?.amount);
+    const window = asRecord(item?.window);
+    return (
+        typeof item?.label === "string" &&
+        window !== null &&
+        amount !== null &&
+        finiteNumber(amount.used) !== undefined &&
+        finiteNumber(amount.limit) !== undefined &&
+        finiteNumber(amount.usedFraction) !== undefined &&
+        typeof amount.unit === "string" &&
+        amount.unit in UNIT_LABELS
+    );
+}
+
+/**
+ * 解析 `omp usage --json` 的内置账号报告。条目结构与 UsageReport 同源，
+ * 仅保留 planType，丢弃 metadata 里的账号字段（email、accountId 等）。
+ * 载荷非法或没有任何可用报告时返回空数组。
+ */
+export function parseBuiltinUsageReports(payload: unknown): UsageReport[] {
+    const root = asRecord(payload);
+    const rawReports = root?.reports;
+    if (!Array.isArray(rawReports)) return [];
+
+    const reports: UsageReport[] = [];
+    for (const raw of rawReports) {
+        const item = asRecord(raw);
+        if (!item) continue;
+        const provider = item.provider;
+        const rawLimits = item.limits;
+        if (typeof provider !== "string" || provider.length === 0) continue;
+        if (!Array.isArray(rawLimits)) continue;
+        const limits = rawLimits.filter(isUsableLimit) as UsageReport["limits"];
+        if (limits.length === 0) continue;
+
+        const metadata = asRecord(item.metadata);
+        reports.push({
+            provider,
+            fetchedAt: finiteNumber(item.fetchedAt) ?? 0,
+            limits,
+            ...(typeof metadata?.planType === "string"
+                ? { metadata: { planType: metadata.planType } }
+                : {}),
+        });
+    }
+    return reports;
 }

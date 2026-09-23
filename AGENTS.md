@@ -8,9 +8,9 @@ OMP 扩展，用于在 OMP 会话中显示多个 provider 的额度。采用 pro
 
 | 文件 | 职责 |
 | --- | --- |
-| `src/index.ts` | 扩展入口。向 `ExtensionAPI` 注册 provider 与 `/omp-usage` 命令；凭据通过子进程 `omp token <providerId> --raw` 读取，只驻留内存 |
+| `src/index.ts` | 扩展入口。向 `ExtensionAPI` 注册 provider 与 `/omp-usage` 命令；凭据通过子进程 `omp token <providerId> --raw` 读取，只驻留内存。`/omp-usage all` 为聚合模式：注册表 provider + `omp usage --json --redact` 透传内置账号报告（过滤扩展已覆盖的 provider） |
 | `src/provider-registry.ts` | 注册表。`UsageProviderDefinition`（`id` / `displayName` / `baseUrl` / `api` / `fetchUsage`），新增 provider 从这里开始 |
-| `src/usage.ts` | 智谱领域逻辑：`parseZhipuUsage`（解析）、`fetchZhipuUsage`（请求）、`formatUsageReport`（格式化） |
+| `src/usage.ts` | 智谱领域逻辑：`parseZhipuUsage`（解析）、`fetchZhipuUsage`（请求）、`formatUsageReport`（格式化）。`parseBuiltinUsageReports` 解析 `omp usage --json` 的内置账号报告，与 `UsageReport` 同构，metadata 只保留 `planType` |
 | `test/usage.test.ts` | 回归测试，全部使用确定性夹具和注入的 `fetch` |
 
 ## 智谱接口领域知识（改动解析逻辑前必读）
