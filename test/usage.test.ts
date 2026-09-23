@@ -61,7 +61,7 @@ describe("provider 注册表", () => {
       PROVIDER_ID,
     );
     expect(findProviderDefinition(PROVIDER_ID)?.displayName).toBe(
-      "智谱 GLM 编程套餐",
+      "Zhipu GLM Coding Plan",
     );
   });
 });
