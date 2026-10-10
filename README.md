@@ -45,27 +45,33 @@ Authorization: Bearer <API 密钥>
 omp --extension /path/to/omp-usage
 ```
 
-进入会话后执行：
+额度条会自动显示（见下文「状态栏额度条」），无需手动执行任何命令。凭据通过 `omp token` 读取，只保存在内存中，不会出现在日志里；接口不可用或凭据无效时额度条静默隐藏，不会伪造为零额度。
+
+## 状态栏额度条
+
+扩展以 widget 在**输入框正上方一行、右对齐**显示 5 小时与 7 天窗口的额度条，无需任何 OMP 配置：
 
 ```text
-/omp-usage
+5h ██████░░░░ 64%  7d ███░░░░░░░ 31%
 ```
 
-不传参数时查询当前注册表中的第一个 provider。也可以指定 provider：
+每段为「窗口标签 + 10 格条 + 已用百分比 + reset 倒计时」，实心块按已用比例填充：
 
 ```text
-/omp-usage zhipu-coding-plan
+5h ██████░░░░ 64% 2h14m  7d ███░░░░░░░ 31% 4d6h
 ```
 
-使用 `all` 进入聚合模式，同时显示注册表 provider 和 OMP 内置账号（如 `openai-codex` 的 ChatGPT 订阅）的额度：
+颜色跟随 OMP 当前主题的语义色（亮度/暗色主题都适配）：
 
-```text
-/omp-usage all
-```
+| 主题色 | 已用比例 |
+|---|---|
+| `success` | < 60% |
+| `warning` | 60–85% |
+| `error` | > 85% |
 
-聚合模式通过 `omp usage --json --redact` 透传内置账号报告，凭据刷新与缓存由 OMP 处理；扩展已覆盖的 provider 不会重复显示，metadata 中的账号字段（邮箱、账号 ID 等）会被剥离。
+reset 倒计时着主题 `dim` 色，格式尽可能紧凑（`45m` / `2h14m` / `4d6h`，零分量省略）；缺失或已过期时省略。额度条在会话启动和每轮对话结束后刷新；接口不可用时静默隐藏，不影响其他功能。
 
-命令会通过 `omp token` 读取对应 provider 的凭据，请求额度接口，并显示套餐、当前用量、剩余额度和重置时间。凭据只保存在内存中，不会出现在通知或日志里。
+> 说明：把条放进状态栏 segments 行内需要上游 [PR #9021](https://github.com/can1357/oh-my-pi/pull/9021)（`registerStatusLineSegment` API）合并并升级 omp 后才能实现。
 
 如果希望在每次 OMP 会话中自动加载，可以在 `~/.omp/agent/config.yml` 中配置扩展路径：
 
@@ -75,10 +81,6 @@ extensions:
 ```
 
 修改配置后请重启 OMP。
-
-在当前 OMP CLI 中，独立 `omp usage` 子命令不会加载显式扩展路径；请在已经加载本扩展的会话中使用 `/omp-usage`。
-
-当接口不可用、凭据无效，或响应中没有可识别的额度时，命令会提示额度不可用，不会伪造为零额度。
 
 ## 开发
 

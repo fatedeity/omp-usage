@@ -1,7 +1,6 @@
 import {
   fetchZhipuUsage,
   PROVIDER_ID,
-  USAGE_ENDPOINT,
   type FetchLike,
   type UsageReport,
 } from "./usage.js";
@@ -23,13 +22,3 @@ export const PROVIDER_DEFINITIONS: readonly UsageProviderDefinition[] = [
     fetchUsage: fetchZhipuUsage,
   },
 ];
-
-export const PROVIDER_ENDPOINTS: Readonly<Record<string, string>> = {
-  [PROVIDER_ID]: USAGE_ENDPOINT,
-};
-
-export function findProviderDefinition(
-  providerId: string,
-): UsageProviderDefinition | undefined {
-  return PROVIDER_DEFINITIONS.find(provider => provider.id === providerId);
-}

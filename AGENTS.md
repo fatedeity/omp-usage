@@ -8,10 +8,11 @@ OMP 扩展，用于在 OMP 会话中显示多个 provider 的额度。采用 pro
 
 | 文件 | 职责 |
 | --- | --- |
-| `src/index.ts` | 扩展入口。向 `ExtensionAPI` 注册 provider 与 `/omp-usage` 命令；凭据通过子进程 `omp token <providerId> --raw` 读取，只驻留内存。`/omp-usage all` 为聚合模式：注册表 provider + `omp usage --json --redact` 透传内置账号报告（过滤扩展已覆盖的 provider） |
+| `src/index.ts` | 扩展入口。向 `ExtensionAPI` 注册 provider 与状态栏额度条 widget（`session_start` / `turn_end` 刷新）；凭据通过子进程 `omp token <providerId> --raw` 读取，只驻留内存 |
+| `src/status-line.ts` | 额度条渲染：单行紧凑条（窗口标签 + 10 格条 + 百分比 + reset 倒计时），颜色取 OMP 主题语义色（success/warning/error/dim） |
 | `src/provider-registry.ts` | 注册表。`UsageProviderDefinition`（`id` / `displayName` / `baseUrl` / `api` / `fetchUsage`），新增 provider 从这里开始 |
-| `src/usage.ts` | 智谱领域逻辑：`parseZhipuUsage`（解析）、`fetchZhipuUsage`（请求）、`formatUsageReport`（格式化）。`parseBuiltinUsageReports` 解析 `omp usage --json` 的内置账号报告，与 `UsageReport` 同构，metadata 只保留 `planType` |
-| `test/usage.test.ts` | 回归测试，全部使用确定性夹具和注入的 `fetch` |
+| `src/usage.ts` | 智谱领域逻辑：`parseZhipuUsage`（解析）、`fetchZhipuUsage`（请求） |
+| `test/usage.test.ts`、`test/status-line.test.ts` | 回归测试，全部使用确定性夹具和注入的 `fetch` |
 
 ## 智谱接口领域知识（改动解析逻辑前必读）
 
@@ -22,13 +23,13 @@ OMP 扩展，用于在 OMP 会话中显示多个 provider 的额度。采用 pro
 - **指标类型**：`TIME_LIMIT` → tool calls（requests），`CREDIT_LIMIT` → credits，其余默认 tokens。
 - **绝对计数优先于百分比**：`limit` 可由 `current + remaining` 推导，`used` 可由 `limit - remaining` 推导；纯百分比时单位降级为 `percent`。
 - **窗口按 `durationMs` 升序输出**（5h 在 7d 前），不依赖接口返回顺序——线上接口 7 天在前。
-- **窗口标签用英文**（`"5 hours"` / `"7 days"`），与 OpenAI 面板显示保持一致；报告正文（标题、重置时间）用中文。
+- **窗口标签用英文**（`"5 hours"` / `"7 days"`），与 OpenAI 面板显示保持一致。
 
 ## 约定
 
-- **错误处理**：错误码 / `undefined` 返回，不抛业务异常，不伪造零额度。接口不可用、凭据无效、响应无可识别额度时，命令提示"额度不可用"。
+- **错误处理**：错误码 / `undefined` 返回，不抛业务异常，不伪造零额度。接口不可用、凭据无效、响应无可识别额度时，额度条静默隐藏。
 - **凭据安全**：API 密钥永不持久化、不写入日志或通知。
-- **测试**：解析或格式化行为的任何变更必须补回归测试；测试绝不请求真实智谱接口。
+- **测试**：解析或渲染行为的任何变更必须补回归测试；测试绝不请求真实智谱接口。
 - **代码风格**：TypeScript `strict` / ES2022 / ESM，相对导入带 `.js` 后缀。`src/usage.ts` 为 4 空格缩进，其余文件为 2 空格，编辑时遵循所在文件现状。
 
 ## 常用命令
@@ -46,7 +47,7 @@ omp plugin link --scope user /Users/fatedeity/code/omp-usage
 omp plugin doctor --scope user --fix
 ```
 
-真实验证：在**已加载本扩展的 OMP 会话**中执行 `/omp-usage zhipu-coding-plan`。注意：独立 `omp usage` 子命令不会加载显式扩展路径，不能用它验证本扩展。
+真实验证：在**已加载本扩展的 OMP 会话**中观察输入框上方的额度条。注意：独立 `omp usage` 子命令不会加载显式扩展路径，不能用它验证本扩展。
 
 ## 新增 provider 流程
 
