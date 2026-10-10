@@ -49,10 +49,16 @@ omp --extension /path/to/omp-usage
 
 ## 状态栏额度条
 
-扩展以 widget 在**输入框正上方一行、右对齐**显示 5 小时与 7 天窗口的额度条，无需任何 OMP 配置：
+扩展以 widget 在**输入框正上方一行、右对齐**显示额度条，无需任何 OMP 配置。额度条**跟随当前活跃模型的 provider**：
+
+- 智谱模型（`zhipu-coding-plan`）→ 显示智谱 GLM Coding Plan 的 5h/7d 额度；
+- OpenAI 系模型 → 显示内置账号（如 `openai-codex` 的 ChatGPT 订阅）的 5h/7d 额度，数据来自 `omp usage --json --redact`，账号字段被剥离；
+- 其他 provider 暂无数据源，额度条隐藏。
+
+切换模型后，下一轮对话结束时额度条自动切换。样式：
 
 ```text
-5h ██████░░░░ 64%  7d ███░░░░░░░ 31%
+5h ██████░░░░ 64% 2h14m  7d ███░░░░░░░ 31% 4d6h
 ```
 
 每段为「窗口标签 + 10 格条 + 已用百分比 + reset 倒计时」，实心块按已用比例填充：

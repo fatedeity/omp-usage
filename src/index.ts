@@ -2,6 +2,7 @@ import type { ExtensionAPI, ExtensionContext } from "@oh-my-pi/pi-coding-agent";
 
 import { PROVIDER_DEFINITIONS } from "./provider-registry.js";
 import { renderUsageBar } from "./status-line.js";
+import { parseBuiltinUsageReports, PROVIDER_ID, type UsageReport } from "./usage.js";
 
 async function readConfiguredApiKey(
   pi: ExtensionAPI,
@@ -13,6 +14,24 @@ async function readConfiguredApiKey(
   if (result.code !== 0) return undefined;
   const apiKey = result.stdout.trim();
   return apiKey || undefined;
+}
+
+// 透传 OMP 内置账号额度（如 openai-codex 的 ChatGPT 订阅）。
+// 凭据刷新与缓存都由 omp usage 处理；返回第一个有 5h/7d 窗口的报告。
+async function readBuiltinUsageReport(
+  pi: ExtensionAPI,
+): Promise<UsageReport | undefined> {
+  const result = await pi.exec("omp", ["usage", "--json", "--redact"], {
+    timeout: 30_000,
+  });
+  if (result.code !== 0) return undefined;
+  try {
+    return parseBuiltinUsageReports(JSON.parse(result.stdout)).find(report =>
+      report.limits.some(limit => ["5h", "7d"].includes(limit.window.id)),
+    );
+  } catch {
+    return undefined;
+  }
 }
 
 // 额度条：aboveEditor widget，右对齐到输入框上方一行的右上角。
@@ -34,23 +53,37 @@ function usageWidget(): (
   });
 }
 
+// 额度条刷新：按当前活跃模型的 provider 分流——
+// 智谱模型 → 注册表 fetchUsage；openai 系模型 → 内置账号报告（openai-codex）；
+// 其他 provider 无数据源，隐藏额度条。
 async function refreshUsageStatus(
   pi: ExtensionAPI,
   ctx: ExtensionContext,
 ): Promise<void> {
-  for (const provider of PROVIDER_DEFINITIONS) {
-    const apiKey = await readConfiguredApiKey(pi, provider.id);
-    const report = await provider.fetchUsage(apiKey, fetch);
+  const providerId = ctx.model?.provider;
+  let bar: string | undefined;
+
+  if (providerId === PROVIDER_ID) {
+    for (const provider of PROVIDER_DEFINITIONS) {
+      if (provider.id !== PROVIDER_ID) continue;
+      const apiKey = await readConfiguredApiKey(pi, provider.id);
+      const report = await provider.fetchUsage(apiKey, fetch);
+      if (report) {
+        bar = renderUsageBar(report, ctx.ui.theme);
+        break;
+      }
+    }
+  } else if (providerId?.startsWith("openai")) {
+    const report = await readBuiltinUsageReport(pi);
     if (report) {
-      latestBar = renderUsageBar(report, ctx.ui.theme);
-      ctx.ui.setWidget("omp-usage", latestBar ? usageWidget() : undefined, {
-        placement: "aboveEditor",
-      });
-      return;
+      bar = renderUsageBar(report, ctx.ui.theme);
     }
   }
-  latestBar = undefined;
-  ctx.ui.setWidget("omp-usage", undefined, { placement: "aboveEditor" });
+
+  latestBar = bar;
+  ctx.ui.setWidget("omp-usage", bar ? usageWidget() : undefined, {
+    placement: "aboveEditor",
+  });
 }
 
 export default function registerUsageExtension(pi: ExtensionAPI): void {

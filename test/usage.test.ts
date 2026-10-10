@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   fetchZhipuUsage,
+  parseBuiltinUsageReports,
   parseZhipuUsage,
   PROVIDER_ID,
   USAGE_ENDPOINT,
@@ -203,5 +204,81 @@ describe("fetchZhipuUsage", () => {
     expect(await fetchZhipuUsage("secret-key", failedFetcher, fetchedAt)).toBeNull();
     expect(await fetchZhipuUsage("secret-key", throwingFetcher, fetchedAt)).toBeNull();
     expect(await fetchZhipuUsage(undefined, throwingFetcher, fetchedAt)).toBeNull();
+  });
+});
+
+describe("parseBuiltinUsageReports", () => {
+  const builtinPayload = {
+    generatedAt: fetchedAt,
+    reports: [
+      {
+        provider: "openai-codex",
+        fetchedAt,
+        limits: [
+          {
+            id: "openai-codex:chat:5h:0",
+            label: "5 hours",
+            scope: { provider: "openai-codex", windowId: "5h", shared: true },
+            window: {
+              id: "5h",
+              label: "5 hours",
+              durationMs: 5 * 3_600_000,
+              resetsAt: fetchedAt + 3_600_000,
+            },
+            amount: {
+              used: 24,
+              limit: 100,
+              remaining: 76,
+              usedFraction: 0.24,
+              remainingFraction: 0.76,
+              unit: "percent",
+            },
+            status: "ok",
+          },
+        ],
+        resetCredits: {},
+        metadata: {
+          planType: "plus",
+          email: "dev@example.com",
+          accountId: "acc-123",
+          orgId: "org-456",
+        },
+      },
+    ],
+    accountsWithoutUsage: [],
+    disabledCredentials: [],
+    capacity: {},
+  };
+
+  test("解析内置账号报告并保留套餐信息", () => {
+    const reports = parseBuiltinUsageReports(builtinPayload);
+
+    expect(reports).toHaveLength(1);
+    expect(reports[0]?.provider).toBe("openai-codex");
+    expect(reports[0]?.metadata?.planType).toBe("plus");
+    expect(reports[0]?.limits).toHaveLength(1);
+  });
+
+  test("剥离 metadata 中的账号字段", () => {
+    const reports = parseBuiltinUsageReports(builtinPayload);
+
+    expect(reports[0]?.metadata).toEqual({ planType: "plus" });
+  });
+
+  test("拒绝畸形载荷与不可用条目", () => {
+    expect(parseBuiltinUsageReports(null)).toEqual([]);
+    expect(parseBuiltinUsageReports({})).toEqual([]);
+    expect(parseBuiltinUsageReports({ reports: "nope" })).toEqual([]);
+    expect(
+      parseBuiltinUsageReports({ reports: [{ provider: "x" }] }),
+    ).toEqual([]);
+    expect(
+      parseBuiltinUsageReports({
+        reports: [{ provider: "x", limits: [{ label: "bad", amount: {} }] }],
+      }),
+    ).toEqual([]);
+    expect(
+      parseBuiltinUsageReports({ reports: [{ provider: "x", limits: [] }] }),
+    ).toEqual([]);
   });
 });
