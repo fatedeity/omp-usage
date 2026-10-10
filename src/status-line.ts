@@ -39,16 +39,17 @@ export function renderUsageBar(
   now = Date.now(),
 ): string | undefined {
   const parts: string[] = [];
-  for (const id of ["5h", "7d"]) {
-    const limit = report.limits.find(item => item.window.id === id);
-    if (!limit) continue;
+  const limits = [...report.limits].sort(
+    (a, b) => (a.window.durationMs ?? Infinity) - (b.window.durationMs ?? Infinity),
+  );
+  for (const limit of limits) {
     const fraction = limit.amount.usedFraction;
     const filled = Math.round(fraction * BAR_WIDTH);
     const color =
       fraction > 0.85 ? "error" : fraction >= 0.6 ? "warning" : "success";
     const bar =
       theme.fg(color, FULL.repeat(filled)) + EMPTY.repeat(BAR_WIDTH - filled);
-    const segment = `${id} ${bar} ${theme.fg(color, `${Math.round(fraction * 100)}%`)}`;
+    const segment = `${limit.window.id} ${bar} ${theme.fg(color, `${Math.round(fraction * 100)}%`)}`;
     const reset = formatResetIn(limit.window.resetsAt, now);
     parts.push(reset ? `${segment} ${theme.fg("dim", reset)}` : segment);
   }

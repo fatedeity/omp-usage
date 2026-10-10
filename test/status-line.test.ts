@@ -113,15 +113,15 @@ describe("renderUsageBar", () => {
     );
   });
 
-  test("没有 5h/7d 窗口时返回 undefined", () => {
+  test("渲染非 5h/7d 窗口（如月度）", () => {
     const report = parseZhipuUsage(
       payloadWithPercentages({ "1mo": 10 }),
       fetchedAt,
     );
     expect(report).not.toBeNull();
     expect(
-      renderUsageBar(report as UsageReport, stubTheme, fetchedAt),
-    ).toBeUndefined();
+      stripAnsi(renderUsageBar(report as UsageReport, stubTheme, fetchedAt) ?? ""),
+    ).toBe("1m " + "█" + "░".repeat(9) + " 10%");
   });
 });
 

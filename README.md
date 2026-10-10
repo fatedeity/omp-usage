@@ -51,11 +51,11 @@ omp --extension /path/to/omp-usage
 
 扩展以 widget 在**输入框正上方一行、右对齐**显示额度条，无需任何 OMP 配置。额度条**跟随当前活跃模型的 provider**：
 
-- 智谱模型（`zhipu-coding-plan`）→ 显示智谱 GLM Coding Plan 的 5h/7d 额度；
-- OpenAI 系模型 → 显示内置账号（如 `openai-codex` 的 ChatGPT 订阅）的 5h/7d 额度，数据来自 `omp usage --json --redact`，账号字段被剥离；
+- 智谱模型（`zhipu-coding-plan`）→ 显示智谱 GLM Coding Plan 的额度窗口；
+- OpenAI 系模型 → 显示内置账号（如 `openai-codex` 的 ChatGPT 订阅）的额度窗口（当前接口为 `30d` 月窗），数据来自 `omp usage --json --redact`，账号字段被剥离；
 - 其他 provider 暂无数据源，额度条隐藏。
 
-切换模型后，下一轮对话结束时额度条自动切换。样式：
+切换模型后，下一轮对话开始时额度条自动切换；重开会话（`session_start` / `session_switch`）也会刷新。样式：
 
 ```text
 5h ██████░░░░ 64% 2h14m  7d ███░░░░░░░ 31% 4d6h
@@ -75,7 +75,7 @@ omp --extension /path/to/omp-usage
 | `warning` | 60–85% |
 | `error` | > 85% |
 
-reset 倒计时着主题 `dim` 色，格式尽可能紧凑（`45m` / `2h14m` / `4d6h`，零分量省略）；缺失或已过期时省略。额度条在会话启动和每轮对话结束后刷新；接口不可用时静默隐藏，不影响其他功能。
+reset 倒计时着主题 `dim` 色，格式尽可能紧凑（`45m` / `2h14m` / `4d6h`，零分量省略）；缺失或已过期时省略。额度条在会话启动、会话切换和每轮对话结束后刷新；接口不可用时静默隐藏，不影响其他功能。切换模型无扩展事件，扩展以 2 秒轮询感知 provider 变化并即时换源（变化才拉接口）。
 
 > 说明：把条放进状态栏 segments 行内需要上游 [PR #9021](https://github.com/can1357/oh-my-pi/pull/9021)（`registerStatusLineSegment` API）合并并升级 omp 后才能实现。
 
