@@ -8,11 +8,12 @@ OMP 扩展，用于在 OMP 会话中显示多个 provider 的额度。采用 pro
 
 | 文件 | 职责 |
 | --- | --- |
-| `src/index.ts` | 扩展入口。向 `ExtensionAPI` 注册 provider 与状态栏额度条 widget（`session_start` / `turn_end` 刷新）；按 `ctx.model.provider` 分流数据源：智谱模型走注册表 `fetchUsage`，openai 系模型走 `omp usage --json --redact` 内置账号报告；凭据通过子进程 `omp token <providerId> --raw` 读取，只驻留内存 |
+| `src/index.ts` | 扩展入口。向 `ExtensionAPI` 注册 provider 与状态栏额度条 widget；按 `ctx.model.provider` 分流数据源：智谱模型走注册表 `fetchUsage`，openai 系模型走 `omp usage --json --redact` 内置账号报告；凭据通过子进程 `omp token <providerId> --raw` 读取，只驻留内存。额度按数据源本地缓存 5 分钟，失败（包括 429）指数退避（60 秒起步、封顶 30 分钟）；2 秒轮询检查 provider 变化和缓存过期 |
 | `src/status-line.ts` | 额度条渲染：单行紧凑条（窗口标签 + 10 格条 + 百分比 + reset 倒计时），颜色取 OMP 主题语义色（success/warning/error/dim） |
 | `src/provider-registry.ts` | 注册表。`UsageProviderDefinition`（`id` / `displayName` / `baseUrl` / `api` / `fetchUsage`），新增 provider 从这里开始 |
 | `src/usage.ts` | 智谱领域逻辑：`parseZhipuUsage`（解析）、`fetchZhipuUsage`（请求）；`parseBuiltinUsageReports` 解析 `omp usage --json` 的内置账号报告（与 `UsageReport` 同构，metadata 只保留 `planType`） |
 | `test/usage.test.ts`、`test/status-line.test.ts` | 回归测试，全部使用确定性夹具和注入的 `fetch` |
+| `test/refresh.test.ts` | 额度刷新退避策略测试 |
 
 ## 智谱接口领域知识（改动解析逻辑前必读）
 

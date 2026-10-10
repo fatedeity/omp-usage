@@ -42,7 +42,7 @@ async function readBuiltinUsageReport(
 }
 
 // 额度条：aboveEditor widget，右对齐到输入框上方一行的右上角。
-// 会话启动/切换和每轮对话结束后刷新；拉取失败时静默清除。
+// 会话启动/切换、每轮对话结束后和轮询保鲜时刷新；拉取失败时保留旧显示。
 let latestBar: string | undefined;
 let latestProviderId: string | undefined;
 let refreshInFlight = false;
@@ -62,9 +62,58 @@ function usageWidget(): (
   });
 }
 
+// ---------- 刷新策略：5 分钟 TTL 缓存 + 失败指数退避（社区惯例 1-5 分钟，查询接口无官方限频） ----------
+const CACHE_TTL_MS = 5 * 60_000;
+const BACKOFF_BASE_MS = 60_000;
+const BACKOFF_MAX_MS = 30 * 60_000;
+
+// 连续失败 n 次后的退避时长：60s 起步翻倍，封顶 30 分钟。
+export function nextBackoffMs(consecutiveFailures: number): number {
+  return Math.min(
+    BACKOFF_BASE_MS * 2 ** (consecutiveFailures - 1),
+    BACKOFF_MAX_MS,
+  );
+}
+
+type SourceKey = typeof PROVIDER_ID | "openai";
+type CacheEntry = { report: UsageReport; fetchedAt: number };
+// 按数据源分桶缓存；键集合固定（两个源），值运行时填充。
+const reportCache: Partial<Record<SourceKey, CacheEntry>> = {};
+const backoffUntil: Partial<Record<SourceKey, number>> = {};
+const consecutiveFailures: Partial<Record<SourceKey, number>> = {};
+
+function sourceKey(providerId: string | undefined): SourceKey | undefined {
+  if (providerId === PROVIDER_ID) return PROVIDER_ID;
+  if (providerId?.startsWith("openai")) return "openai";
+  return undefined;
+}
+
+async function fetchSourceReport(
+  pi: ExtensionAPI,
+  key: SourceKey,
+  providerId: string | undefined,
+): Promise<UsageReport | undefined> {
+  if (key === PROVIDER_ID) {
+    const provider = PROVIDER_DEFINITIONS.find(item => item.id === PROVIDER_ID);
+    if (!provider) return undefined;
+    const apiKey = await readConfiguredApiKey(pi, provider.id);
+    return (await provider.fetchUsage(apiKey, fetch)) ?? undefined;
+  }
+  return readBuiltinUsageReport(pi, providerId!);
+}
+
+function applyBar(ctx: ExtensionContext, report: UsageReport | undefined): void {
+  const bar = report ? renderUsageBar(report, ctx.ui.theme) : undefined;
+  latestBar = bar;
+  ctx.ui.setWidget("omp-usage", bar ? usageWidget() : undefined, {
+    placement: "aboveEditor",
+  });
+}
+
 // 额度条刷新：按当前活跃模型的 provider 分流——
 // 智谱模型 → 注册表 fetchUsage；openai 系模型 → 内置账号报告（openai-codex）；
 // 其他 provider 无数据源，隐藏额度条。
+// 所有触发源（事件/轮询）都进这里，由 TTL 与退避统一裁决是否真正拉接口。
 async function refreshUsageStatus(
   pi: ExtensionAPI,
   ctx: ExtensionContext,
@@ -73,37 +122,49 @@ async function refreshUsageStatus(
   refreshInFlight = true;
   try {
     const providerId = ctx.model?.provider;
-    let bar: string | undefined;
+    const providerChanged = (providerId ?? undefined) !== latestProviderId;
+    latestProviderId = providerId;
+    const key = sourceKey(providerId);
 
-    if (providerId === PROVIDER_ID) {
-      for (const provider of PROVIDER_DEFINITIONS) {
-        if (provider.id !== PROVIDER_ID) continue;
-        const apiKey = await readConfiguredApiKey(pi, provider.id);
-        const report = await provider.fetchUsage(apiKey, fetch);
-        if (report) {
-          bar = renderUsageBar(report, ctx.ui.theme);
-          break;
-        }
-      }
-    } else if (providerId?.startsWith("openai")) {
-      const report = await readBuiltinUsageReport(pi, providerId);
-      if (report) {
-        bar = renderUsageBar(report, ctx.ui.theme);
-      }
+    if (!key) {
+      applyBar(ctx, undefined);
+      return;
     }
 
-    latestBar = bar;
-    latestProviderId = providerId;
-    ctx.ui.setWidget("omp-usage", bar ? usageWidget() : undefined, {
-      placement: "aboveEditor",
-    });
+    const now = Date.now();
+    const cached = reportCache[key];
+    if (providerChanged) applyBar(ctx, cached?.report);
+    if (cached && now - cached.fetchedAt < CACHE_TTL_MS) {
+      applyBar(ctx, cached.report);
+      return;
+    }
+    // 退避窗口内不动，保留现有显示，避免继续打非公开接口。
+    if (now < (backoffUntil[key] ?? 0)) return;
+
+    let report: UsageReport | undefined;
+    try {
+      report = await fetchSourceReport(pi, key, providerId);
+    } catch {
+      report = undefined;
+    }
+    if (report) {
+      consecutiveFailures[key] = 0;
+      backoffUntil[key] = 0;
+      reportCache[key] = { report, fetchedAt: Date.now() };
+      applyBar(ctx, report);
+    } else {
+      const failures = (consecutiveFailures[key] ?? 0) + 1;
+      consecutiveFailures[key] = failures;
+      backoffUntil[key] = Date.now() + nextBackoffMs(failures);
+    }
   } finally {
     refreshInFlight = false;
   }
 }
 
-// 切换模型没有扩展事件可订阅：轮询 provider 归属（实时 getter，开销为零），
-// 变化才拉接口。轮询间隔 2s，定时器由 harness 托管（TUI 退出自动清理）。
+// 切换模型没有扩展事件可订阅：轮询统一承担换源感知与 5 分钟保鲜。
+// 每 2s 调一次 refreshUsageStatus（内部先查 TTL/退避，绝大多数时候直接返回），
+// 定时器由 harness 托管（TUI 退出自动清理）。
 const PROVIDER_POLL_MS = 2_000;
 
 function startProviderWatch(
@@ -112,7 +173,14 @@ function startProviderWatch(
 ): void {
   if (typeof ctx.setInterval !== "function") return;
   ctx.setInterval(() => {
-    if ((ctx.model?.provider ?? undefined) !== latestProviderId) {
+    const providerId = ctx.model?.provider;
+    const key = sourceKey(providerId);
+    const cached = key ? reportCache[key] : undefined;
+    const stale =
+      !!key &&
+      Date.now() >= (backoffUntil[key] ?? 0) &&
+      (!cached || Date.now() - cached.fetchedAt >= CACHE_TTL_MS);
+    if ((providerId ?? undefined) !== latestProviderId || stale) {
       void refreshUsageStatus(pi, ctx);
     }
   }, PROVIDER_POLL_MS);
@@ -134,26 +202,19 @@ export default function registerUsageExtension(pi: ExtensionAPI): void {
 
   let providerWatchStarted = false;
 
+  const refresh = async (_event: unknown, ctx: ExtensionContext) => {
+    await refreshUsageStatus(pi, ctx);
+  };
+
   pi.on("session_start", async (_event, ctx) => {
     if (!providerWatchStarted) {
       providerWatchStarted = true;
       startProviderWatch(pi, ctx);
     }
-    await refreshUsageStatus(pi, ctx);
+    await refresh(_event, ctx);
   });
 
-  pi.on("session_switch", async (_event, ctx) => {
-    await refreshUsageStatus(pi, ctx);
-  });
-
-  // 模型切换没有独立事件：turn_start 时若 provider 已变化立即刷新，避免整轮结束才换源。
-  pi.on("turn_start", async (_event, ctx) => {
-    if ((ctx.model?.provider ?? undefined) !== latestProviderId) {
-      await refreshUsageStatus(pi, ctx);
-    }
-  });
-
-  pi.on("turn_end", async (_event, ctx) => {
-    await refreshUsageStatus(pi, ctx);
-  });
+  pi.on("session_switch", refresh);
+  pi.on("turn_start", refresh);
+  pi.on("turn_end", refresh);
 }
