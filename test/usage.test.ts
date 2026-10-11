@@ -236,7 +236,13 @@ describe("parseBuiltinUsageReports", () => {
             status: "ok",
           },
         ],
-        resetCredits: {},
+        resetCredits: {
+          availableCount: 2,
+          credits: [
+            { expiresAt: "2026-10-22T20:42:53.777517Z" },
+            { expiresAt: "2026-10-29T18:01:32.176209Z" },
+          ],
+        },
         metadata: {
           planType: "plus",
           email: "dev@example.com",
@@ -257,6 +263,13 @@ describe("parseBuiltinUsageReports", () => {
     expect(reports[0]?.provider).toBe("openai-codex");
     expect(reports[0]?.metadata?.planType).toBe("plus");
     expect(reports[0]?.limits).toHaveLength(1);
+    expect(reports[0]?.resetCredits).toEqual({
+      availableCount: 2,
+      credits: [
+        { expiresAt: "2026-10-22T20:42:53.777517Z" },
+        { expiresAt: "2026-10-29T18:01:32.176209Z" },
+      ],
+    });
   });
 
   test("剥离 metadata 中的账号字段", () => {

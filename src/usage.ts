@@ -35,6 +35,10 @@ export type UsageReport = {
     provider: string;
     fetchedAt: number;
     limits: UsageLimit[];
+    resetCredits?: {
+        availableCount: number;
+        credits?: { expiresAt?: string }[];
+    };
     metadata?: {
         planType?: string;
     };
@@ -338,8 +342,8 @@ function isUsableLimit(value: unknown): boolean {
 }
 
 /**
- * 解析 `omp usage --json` 的内置账号报告。条目结构与 UsageReport 同源，
- * 仅保留 planType，丢弃 metadata 里的账号字段（email、accountId 等）。
+ * 解析 `omp usage --json` 的内置账号报告。仅保留 planType 与可用重置卡数量/到期时间，
+ * 丢弃 metadata 里的账号字段（email、accountId 等）。
  * 载荷非法或没有任何可用报告时返回空数组。
  */
 export function parseBuiltinUsageReports(payload: unknown): UsageReport[] {
@@ -358,11 +362,29 @@ export function parseBuiltinUsageReports(payload: unknown): UsageReport[] {
         const limits = rawLimits.filter(isUsableLimit) as UsageReport["limits"];
         if (limits.length === 0) continue;
 
+        const resetCredits = asRecord(item.resetCredits);
+        const availableCount = finiteNumber(resetCredits?.availableCount);
+        const credits = Array.isArray(resetCredits?.credits)
+            ? resetCredits.credits.flatMap(credit => {
+                  const expiresAt = asRecord(credit)?.expiresAt;
+                  return typeof expiresAt === "string" ? [{ expiresAt }] : [];
+              })
+            : undefined;
         const metadata = asRecord(item.metadata);
         reports.push({
             provider,
             fetchedAt: finiteNumber(item.fetchedAt) ?? 0,
             limits,
+            ...(availableCount !== undefined &&
+            Number.isInteger(availableCount) &&
+            availableCount >= 0
+                ? {
+                      resetCredits: {
+                          availableCount,
+                          ...(credits ? { credits } : {}),
+                      },
+                  }
+                : {}),
             ...(typeof metadata?.planType === "string"
                 ? { metadata: { planType: metadata.planType } }
                 : {}),

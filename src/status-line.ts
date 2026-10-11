@@ -53,5 +53,23 @@ export function renderUsageBar(
     const reset = formatResetIn(limit.window.resetsAt, now);
     parts.push(reset ? `${segment} ${theme.fg("dim", reset)}` : segment);
   }
+  const resetCredits = report.resetCredits;
+  if (resetCredits && resetCredits.availableCount > 0) {
+    let nextExpiry: number | undefined;
+    for (const credit of resetCredits.credits ?? []) {
+      const expiresAt = credit.expiresAt ? Date.parse(credit.expiresAt) : NaN;
+      if (
+        Number.isFinite(expiresAt) &&
+        expiresAt > now &&
+        (nextExpiry === undefined || expiresAt < nextExpiry)
+      ) {
+        nextExpiry = expiresAt;
+      }
+    }
+    const expiry = formatResetIn(nextExpiry, now);
+    parts.push(
+      theme.fg("success", `✦ ${resetCredits.availableCount}${expiry ? ` · ${expiry}` : ""}`),
+    );
+  }
   return parts.length > 0 ? parts.join("  ") : undefined;
 }

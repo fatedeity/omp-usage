@@ -72,6 +72,25 @@ describe("renderUsageBar", () => {
     expect(bar).toContain("[dim]30m[/]");
   });
 
+  test("显示 Codex 可用重置卡数与最近到期倒计时", () => {
+    const report = {
+      ...(parseZhipuUsage(payloadWithPercentages({ "1mo": 95 }), fetchedAt) as UsageReport),
+      resetCredits: {
+        availableCount: 2,
+        credits: [
+          { expiresAt: new Date(fetchedAt + 4 * 86_400_000).toISOString() },
+          { expiresAt: new Date(fetchedAt + 2 * 86_400_000).toISOString() },
+        ],
+      },
+    };
+
+    const plain = stripAnsi(renderUsageBar(report, stubTheme, fetchedAt) ?? "");
+    expect(plain).toContain("✦ 2 · 2d");
+    expect(renderUsageBar(report, stubTheme, fetchedAt)).toContain(
+      "[success]✦ 2 · 2d[/]",
+    );
+  });
+
   test("按已用比例填充格子（四舍五入）", () => {
     const report = parseZhipuUsage(
       payloadWithPercentages({ "5h": 64, "7d": 25 }),
