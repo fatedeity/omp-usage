@@ -20,7 +20,7 @@ function payloadWithPercentages(
   const unitNumber: Record<string, { unit: number; number: number }> = {
     "5h": { unit: 3, number: 5 },
     "7d": { unit: 6, number: 1 },
-    "1mo": { unit: 5, number: 1 },
+    "1m": { unit: 5, number: 1 },
   };
   return {
     code: 200,
@@ -74,7 +74,7 @@ describe("renderUsageBar", () => {
 
   test("显示 Codex 可用重置卡数与最近到期倒计时", () => {
     const report = {
-      ...(parseZhipuUsage(payloadWithPercentages({ "1mo": 95 }), fetchedAt) as UsageReport),
+      ...(parseZhipuUsage(payloadWithPercentages({ "1m": 95 }), fetchedAt) as UsageReport),
       resetCredits: {
         availableCount: 2,
         credits: [
@@ -89,6 +89,31 @@ describe("renderUsageBar", () => {
     expect(renderUsageBar(report, stubTheme, fetchedAt)).toContain(
       "[success]✦ 2 · 2d[/]",
     );
+  });
+
+  test("重置卡无到期信息时只显示数量", () => {
+    const report = {
+      ...(parseZhipuUsage(payloadWithPercentages({ "1m": 95 }), fetchedAt) as UsageReport),
+      resetCredits: { availableCount: 2, credits: [] },
+    };
+
+    const plain = stripAnsi(renderUsageBar(report, stubTheme, fetchedAt) ?? "");
+    expect(plain).toContain("✦ 2");
+    expect(plain).not.toContain("·");
+  });
+
+  test("重置卡全部已过期时不显示", () => {
+    const report = {
+      ...(parseZhipuUsage(payloadWithPercentages({ "1m": 95 }), fetchedAt) as UsageReport),
+      resetCredits: {
+        availableCount: 2,
+        credits: [
+          { expiresAt: new Date(fetchedAt - 86_400_000).toISOString() },
+        ],
+      },
+    };
+
+    expect(stripAnsi(renderUsageBar(report, stubTheme, fetchedAt) ?? "")).not.toContain("✦");
   });
 
   test("按已用比例填充格子（四舍五入）", () => {
@@ -132,9 +157,9 @@ describe("renderUsageBar", () => {
     );
   });
 
-  test("渲染非 5h/7d 窗口（如月度）", () => {
+  test("渲染非 5h/7d 窗口（如分钟级）", () => {
     const report = parseZhipuUsage(
-      payloadWithPercentages({ "1mo": 10 }),
+      payloadWithPercentages({ "1m": 10 }),
       fetchedAt,
     );
     expect(report).not.toBeNull();

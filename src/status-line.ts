@@ -66,10 +66,13 @@ export function renderUsageBar(
         nextExpiry = expiresAt;
       }
     }
-    const expiry = formatResetIn(nextExpiry, now);
-    parts.push(
-      theme.fg("success", `✦ ${resetCredits.availableCount}${expiry ? ` · ${expiry}` : ""}`),
-    );
+    // availableCount 与 credits 可能短暂不同步：有卡记录但全部已过期时不显示，避免误导。
+    if (nextExpiry !== undefined || !resetCredits.credits?.length) {
+      const expiry = formatResetIn(nextExpiry, now);
+      parts.push(
+        theme.fg("success", `✦ ${resetCredits.availableCount}${expiry ? ` · ${expiry}` : ""}`),
+      );
+    }
   }
   return parts.length > 0 ? parts.join("  ") : undefined;
 }
