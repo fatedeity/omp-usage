@@ -17,17 +17,17 @@ function payloadWithPercentages(
   percentages: Record<string, number>,
   resetsInMinutes?: Record<string, number>,
 ): unknown {
-  const unitNumber: Record<string, { unit: number; number: number }> = {
-    "5h": { unit: 3, number: 5 },
-    "7d": { unit: 6, number: 1 },
-    "1m": { unit: 5, number: 1 },
+  const unitNumber: Record<string, { type: string; unit: number; number: number }> = {
+    "5h": { type: "TOKENS_LIMIT", unit: 3, number: 5 },
+    "7d": { type: "TOKENS_LIMIT", unit: 6, number: 1 },
+    // 月度 MCP/工具调用额度：TIME_LIMIT + unit=5 + number=1
+    "1mo": { type: "TIME_LIMIT", unit: 5, number: 1 },
   };
   return {
     code: 200,
     success: true,
     data: {
       limits: Object.entries(percentages).map(([windowId, percentage]) => ({
-        type: "TOKENS_LIMIT",
         ...unitNumber[windowId],
         percentage,
         ...(resetsInMinutes?.[windowId] !== undefined
@@ -74,7 +74,7 @@ describe("renderUsageBar", () => {
 
   test("显示 Codex 可用重置卡数与最近到期倒计时", () => {
     const report = {
-      ...(parseZhipuUsage(payloadWithPercentages({ "1m": 95 }), fetchedAt) as UsageReport),
+      ...(parseZhipuUsage(payloadWithPercentages({ "1mo": 95 }), fetchedAt) as UsageReport),
       resetCredits: {
         availableCount: 2,
         credits: [
@@ -93,7 +93,7 @@ describe("renderUsageBar", () => {
 
   test("重置卡无到期信息时只显示数量", () => {
     const report = {
-      ...(parseZhipuUsage(payloadWithPercentages({ "1m": 95 }), fetchedAt) as UsageReport),
+      ...(parseZhipuUsage(payloadWithPercentages({ "1mo": 95 }), fetchedAt) as UsageReport),
       resetCredits: { availableCount: 2, credits: [] },
     };
 
@@ -104,7 +104,7 @@ describe("renderUsageBar", () => {
 
   test("重置卡全部已过期时不显示", () => {
     const report = {
-      ...(parseZhipuUsage(payloadWithPercentages({ "1m": 95 }), fetchedAt) as UsageReport),
+      ...(parseZhipuUsage(payloadWithPercentages({ "1mo": 95 }), fetchedAt) as UsageReport),
       resetCredits: {
         availableCount: 2,
         credits: [
@@ -157,15 +157,15 @@ describe("renderUsageBar", () => {
     );
   });
 
-  test("渲染非 5h/7d 窗口（如分钟级）", () => {
+  test("渲染非 5h/7d 窗口（如月度）", () => {
     const report = parseZhipuUsage(
-      payloadWithPercentages({ "1m": 10 }),
+      payloadWithPercentages({ "1mo": 10 }),
       fetchedAt,
     );
     expect(report).not.toBeNull();
     expect(
       stripAnsi(renderUsageBar(report as UsageReport, stubTheme, fetchedAt) ?? ""),
-    ).toBe("1m " + "█" + "░".repeat(9) + " 10%");
+    ).toBe("1mo " + "█" + "░".repeat(9) + " 10%");
   });
 });
 
