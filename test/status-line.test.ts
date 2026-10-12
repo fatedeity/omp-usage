@@ -57,7 +57,7 @@ describe("renderUsageBar", () => {
 
     const plain = stripAnsi(renderUsageBar(report, stubTheme, fetchedAt) ?? "");
     expect(plain).toBe(
-      "5h ██████░░░░ 64% 2h14m  7d ███░░░░░░░ 31% 4d6h",
+      "5h ▰▰▰▰▰▰▱▱▱▱ 64% 2h14m  7d ▰▰▰▱▱▱▱▱▱▱ 31% 4d6h",
     );
   });
 
@@ -124,8 +124,8 @@ describe("renderUsageBar", () => {
 
     const plain = stripAnsi(renderUsageBar(report, stubTheme, fetchedAt) ?? "");
     const [fiveHour, sevenDay] = plain.split("  ");
-    expect(fiveHour).toContain("█".repeat(6) + "░".repeat(4));
-    expect(sevenDay).toContain("█".repeat(3) + "░".repeat(7));
+    expect(fiveHour).toContain("▰".repeat(6) + "▱".repeat(4));
+    expect(sevenDay).toContain("▰".repeat(3) + "▱".repeat(7));
     expect(fiveHour).toContain("64%");
     expect(sevenDay).toContain("25%");
   });
@@ -153,7 +153,7 @@ describe("renderUsageBar", () => {
     ) as UsageReport;
 
     expect(stripAnsi(renderUsageBar(report, stubTheme, fetchedAt) ?? "")).toBe(
-      "5h " + "█".repeat(9) + "░ 90%",
+      "5h " + "▰".repeat(9) + "▱ 90%",
     );
   });
 
@@ -165,7 +165,7 @@ describe("renderUsageBar", () => {
     expect(report).not.toBeNull();
     expect(
       stripAnsi(renderUsageBar(report as UsageReport, stubTheme, fetchedAt) ?? ""),
-    ).toBe("1mo " + "█" + "░".repeat(9) + " 10%");
+    ).toBe("1mo ▰" + "▱".repeat(9) + " 10%");
   });
 });
 

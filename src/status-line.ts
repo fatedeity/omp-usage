@@ -1,8 +1,8 @@
 import type { UsageReport } from "./usage.js";
 
 const BAR_WIDTH = 10;
-const FULL = "█";
-const EMPTY = "░";
+const FULL = "▰";
+const EMPTY = "▱";
 
 /** renderUsageBar 需要的最小主题面（ctx.ui.theme 的结构子集，便于测试 stub）。 */
 export interface UsageTheme {
@@ -29,7 +29,7 @@ export function formatResetIn(
 }
 
 /**
- * 渲染额度条（单行紧凑）：`5h ██████░░░░ 64% 2h14m  7d ███░░░░░░░ 31% 4d6h`。
+ * 渲染额度条（单行紧凑）：`5h ▰▰▰▰▰▰▱▱▱▱ 64% 2h14m  7d ▰▰▰▱▱▱▱▱▱▱ 31% 4d6h`。
  * 颜色取主题语义色（success/warning/error），reset 倒计时用 dim。
  * 两个窗口都缺失时返回 undefined（不显示）。
  */
