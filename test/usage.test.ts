@@ -277,6 +277,49 @@ describe("parseBuiltinUsageReports", () => {
 
     expect(reports[0]?.metadata).toEqual({ planType: "plus" });
   });
+  test("percent 窗口缺 limit/remaining 时按百分制补全", () => {
+    // alibaba-token-plan 内置报告的真实形状：只有 used/usedFraction/unit。
+    const reports = parseBuiltinUsageReports({
+      reports: [
+        {
+          provider: "alibaba-token-plan",
+          fetchedAt,
+          limits: [
+            {
+              id: "credits:monthly",
+              label: "Monthly Credits",
+              scope: {
+                provider: "alibaba-token-plan",
+                windowId: "monthly",
+              },
+              window: {
+                id: "monthly",
+                label: "Monthly Credits",
+                resetsAt: fetchedAt + 31 * 86_400_000,
+              },
+              amount: {
+                used: 0.22906502222222225,
+                usedFraction: 0.0022906502222222224,
+                unit: "percent",
+              },
+              status: "ok",
+            },
+          ],
+          metadata: { source: "bailian-console" },
+        },
+      ],
+    });
+
+    expect(reports).toHaveLength(1);
+    expect(reports[0]?.limits[0]?.amount).toEqual({
+      used: 0.22906502222222225,
+      limit: 100,
+      remaining: 99.77093497777778,
+      usedFraction: 0.0022906502222222224,
+      remainingFraction: 0.9977093497777778,
+      unit: "percent",
+    });
+  });
 
   test("拒绝畸形载荷与不可用条目", () => {
     expect(parseBuiltinUsageReports(null)).toEqual([]);

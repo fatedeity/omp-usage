@@ -9,8 +9,9 @@
 当前已接入：
 
 - `zhipu-coding-plan`：智谱 BigModel CN / GLM Coding Plan。
+- `alibaba-token-plan`：阿里云百炼 Token Plan（Qwen 系模型）。额度仅百炼 console session 可查，OMP 内置了它的 usage provider，本扩展直接复用 `omp usage` 内置报告，**不自写抓取**；使用前需执行一次 `omp login alibaba-token-plan` 完成浏览器登录。
 
-后续 provider 应分别实现自己的额度接口和认证方式。不能假设所有 provider 都使用相同的 API、凭据或额度字段。
+后续 provider 有两条路：OMP 已内置 usage provider 的（如 `alibaba-token-plan`、`openai-codex`）只需在 `src/index.ts` 分流中接入内置报告分支；未内置的要在 `src/provider-registry.ts` 注册并分别实现额度接口和认证方式。不能假设所有 provider 都使用相同的 API、凭据或额度字段。
 
 ## 智谱 provider
 
@@ -36,6 +37,7 @@ Authorization: Bearer <API 密钥>
 - OMP `18.2.6` 或更高版本；
 - 已配置对应 provider 和凭据；
 - 对应 provider 提供可用的额度查询接口。
+- 使用 `alibaba-token-plan` 时已通过 `omp login alibaba-token-plan` 完成百炼 console 登录（仅 API key 无法查询额度）。
 
 ## 使用方式
 
@@ -53,6 +55,7 @@ omp --extension /path/to/omp-usage
 
 - 智谱模型（`zhipu-coding-plan`）→ 显示智谱 GLM Coding Plan 的额度窗口；
 - OpenAI 系模型 → 显示内置账号（如 `openai-codex` 的 ChatGPT 订阅）的额度窗口（当前接口为 `30d` 月窗），数据来自 `omp usage --json --redact`，账号字段被剥离；
+- 阿里百炼模型（`alibaba-token-plan`）→ 同样走 `omp usage --json --redact`，显示内置解析出的 5 小时 / 7 天 / 月度 Token Plan 窗口（需先 `omp login alibaba-token-plan`，未登录时额度条隐藏）；
 - 其他 provider 暂无数据源，额度条隐藏。
 
 切换模型后最多 2 秒额度条自动换源；启动/切换会话和每轮对话结束也会触发刷新。
@@ -99,7 +102,7 @@ bun run typecheck
 
 测试使用确定性的响应夹具和模拟 `fetch`，不会请求智谱接口。
 
-新增 provider 时，请在 `src/provider-registry.ts` 中添加注册定义，并为响应解析和格式化行为补充回归测试。
+新增 provider 时，先确认 OMP 是否已内置其 usage provider（`omp usage --json` 能看到报告即可复用，只需在 `src/index.ts` 接入分流）；未内置的在 `src/provider-registry.ts` 添加注册定义。两种情况都要为响应解析和格式化行为补充回归测试。
 
 ## 打包
 

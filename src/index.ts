@@ -16,9 +16,11 @@ async function readConfiguredApiKey(
   return apiKey || undefined;
 }
 
-// 透传 OMP 内置账号额度（如 openai-codex 的 ChatGPT 订阅）。
-// 凭据刷新与缓存都由 omp usage 处理；优先返回与当前模型 provider 同名的报告。
-async function readBuiltinUsageReport(
+// 透传 OMP 内置账号额度（如 openai-codex 的 ChatGPT 订阅、alibaba-token-plan 的百炼 Token Plan）。
+// 凭据刷新与缓存都由 omp usage 处理；只取与当前模型 provider 匹配的报告：
+// 精确同名优先，前缀互匹配只为 openai → openai-codex 这类映射，
+// 绝不兜底返回其他 provider 的报告——未登录/无数据时额度条应静默隐藏。
+export async function readBuiltinUsageReport(
   pi: ExtensionAPI,
   providerId: string,
 ): Promise<UsageReport | undefined> {
@@ -33,8 +35,7 @@ async function readBuiltinUsageReport(
       reports.find(report =>
         report.provider.startsWith(providerId) ||
         providerId.startsWith(report.provider),
-      ) ??
-      reports[0]
+      )
     );
   } catch {
     return undefined;
@@ -75,15 +76,19 @@ export function nextBackoffMs(consecutiveFailures: number): number {
   );
 }
 
-type SourceKey = typeof PROVIDER_ID | "openai";
+// alibaba-token-plan 的额度只有百炼 console session 可查，OMP 内置 usage provider
+// （`omp login alibaba-token-plan` 后可用）已实现解析，走内置报告分支即可。
+export const ALIBABA_PROVIDER_ID = "alibaba-token-plan";
+type SourceKey = typeof PROVIDER_ID | "alibaba-token-plan" | "openai";
 type CacheEntry = { report: UsageReport; fetchedAt: number };
-// 按数据源分桶缓存；键集合固定（两个源），值运行时填充。
+// 按数据源分桶缓存；键集合固定（三个源），值运行时填充。
 const reportCache: Partial<Record<SourceKey, CacheEntry>> = {};
 const backoffUntil: Partial<Record<SourceKey, number>> = {};
 const consecutiveFailures: Partial<Record<SourceKey, number>> = {};
 
-function sourceKey(providerId: string | undefined): SourceKey | undefined {
+export function sourceKey(providerId: string | undefined): SourceKey | undefined {
   if (providerId === PROVIDER_ID) return PROVIDER_ID;
+  if (providerId === ALIBABA_PROVIDER_ID) return ALIBABA_PROVIDER_ID;
   if (providerId?.startsWith("openai")) return "openai";
   return undefined;
 }
@@ -111,7 +116,7 @@ function applyBar(ctx: ExtensionContext, report: UsageReport | undefined): void 
 }
 
 // 额度条刷新：按当前活跃模型的 provider 分流——
-// 智谱模型 → 注册表 fetchUsage；openai 系模型 → 内置账号报告（openai-codex）；
+// 智谱模型 → 注册表 fetchUsage；openai 系 / 阿里百炼模型 → 内置账号报告；
 // 其他 provider 无数据源，隐藏额度条。
 // 所有触发源（事件/轮询）都进这里，由 TTL 与退避统一裁决是否真正拉接口。
 async function refreshUsageStatus(

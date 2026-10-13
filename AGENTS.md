@@ -2,18 +2,19 @@
 
 ## 项目定位
 
-OMP 扩展，用于在 OMP 会话中显示多个 provider 的额度。采用 provider 注册表设计：每个 provider 独立声明认证读取、接口地址、响应解析和展示逻辑，新增 provider 不得改动已有 provider 的解析代码。当前仅接入 `zhipu-coding-plan`（智谱 BigModel CN / GLM Coding Plan）。
+OMP 扩展，用于在 OMP 会话中显示多个 provider 的额度。数据源分两类：OMP 未内置 usage 查询的 provider 走本地注册表（独立声明认证读取、接口地址、响应解析，不得改动已有 provider 的解析代码）；OMP 已内置 usage provider 的直接复用 `omp usage --json` 报告，不自写抓取。当前接入 `zhipu-coding-plan`（智谱 BigModel CN / GLM Coding Plan，注册表类）和 `alibaba-token-plan`（阿里云百炼 Token Plan / Qwen，内置报告类，需先 `omp login alibaba-token-plan` 拿到 console session，仅 API key 查不到额度）。
 
 ## 文件职责
 
 | 文件 | 职责 |
 | --- | --- |
-| `src/index.ts` | 扩展入口。向 `ExtensionAPI` 注册 provider 与状态栏额度条 widget；按 `ctx.model.provider` 分流数据源：智谱模型走注册表 `fetchUsage`，openai 系模型走 `omp usage --json --redact` 内置账号报告；凭据通过子进程 `omp token <providerId> --raw` 读取，只驻留内存。额度按数据源本地缓存 5 分钟，失败（包括 429）指数退避（60 秒起步、封顶 30 分钟）；2 秒轮询检查 provider 变化和缓存过期 |
+| `src/index.ts` | 扩展入口。向 `ExtensionAPI` 注册 provider 与状态栏额度条 widget；按 `ctx.model.provider` 分流数据源：智谱模型走注册表 `fetchUsage`，openai 系和 `alibaba-token-plan` 模型走 `omp usage --json --redact` 内置账号报告（报告选择精确同名优先、`openai`→`openai-codex` 前缀匹配，绝不跨 provider 兜底）；凭据通过子进程 `omp token <providerId> --raw` 读取，只驻留内存。额度按数据源本地缓存 5 分钟，失败（包括 429）指数退避（60 秒起步、封顶 30 分钟）；2 秒轮询检查 provider 变化和缓存过期 |
 | `src/status-line.ts` | 额度条渲染：单行紧凑条（窗口标签 + 10 格条 + 百分比 + reset 倒计时），并显示内置账号报告中的可用重置卡数/最近到期时间；颜色取 OMP 主题语义色（success/warning/error/dim） |
-| `src/provider-registry.ts` | 注册表。`UsageProviderDefinition`（`id` / `displayName` / `baseUrl` / `api` / `fetchUsage`），新增 provider 从这里开始 |
+| `src/provider-registry.ts` | 注册表。`UsageProviderDefinition`（`id` / `displayName` / `baseUrl` / `api` / `fetchUsage`），OMP 未内置 usage 的新 provider 从这里开始 |
 | `src/usage.ts` | 智谱领域逻辑：`parseZhipuUsage`（解析）、`fetchZhipuUsage`（请求）；`parseBuiltinUsageReports` 解析 `omp usage --json` 内置账号报告，保留 planType 与重置卡数量/到期时间，丢弃账号字段 |
 | `test/usage.test.ts`、`test/status-line.test.ts` | 回归测试，全部使用确定性夹具和注入的 `fetch` |
 | `test/refresh.test.ts` | 额度刷新退避策略测试 |
+| `test/routing.test.ts` | 数据源分流与内置报告选择测试（mock `pi.exec`） |
 
 ## 智谱接口领域知识（改动解析逻辑前必读）
 
@@ -52,11 +53,12 @@ omp plugin doctor --scope user --fix
 
 ## 新增 provider 流程
 
-1. 在 `src/provider-registry.ts` 的 `PROVIDER_DEFINITIONS` 中添加注册定义；
-2. 为新 provider 实现独立的 `fetchUsage`（认证方式、接口地址、额度字段都可能不同，不要假设与智谱一致）；
-3. 为响应解析和格式化补充回归测试；
-4. 同步更新 README 的"当前支持"列表。
+1. 先查 OMP 是否已内置该 provider 的 usage（跑 `omp usage --json` 看是否出现报告）；已内置则只需在 `src/index.ts` 的 `sourceKey` 分流中加一个内置报告桶，**不要**在注册表重复实现；
+2. 未内置的，在 `src/provider-registry.ts` 的 `PROVIDER_DEFINITIONS` 中添加注册定义；
+3. 为新 provider 实现独立的 `fetchUsage`（认证方式、接口地址、额度字段都可能不同，不要假设与智谱一致）；
+4. 为响应解析和格式化补充回归测试；
+5. 同步更新 README 的"当前支持"列表。
 
 ## 前置条件
 
-OMP `>= 18.2.6`（`peerDependencies` 对齐），且对应 provider 已配置凭据。
+OMP `>= 18.2.6`（`peerDependencies` 对齐），且对应 provider 已配置凭据；`alibaba-token-plan` 还要求已执行 `omp login alibaba-token-plan`（额度依赖百炼 console session，仅 API key 时内置报告会缺席，额度条静默隐藏）。

@@ -334,12 +334,12 @@ function isUsableLimit(value: unknown): boolean {
         window !== null &&
         amount !== null &&
         finiteNumber(amount.used) !== undefined &&
-        finiteNumber(amount.limit) !== undefined &&
         finiteNumber(amount.usedFraction) !== undefined &&
         typeof amount.unit === "string" &&
         amount.unit in UNIT_LABELS
     );
 }
+
 
 /**
  * 解析 `omp usage --json` 的内置账号报告。仅保留 planType 与可用重置卡数量/到期时间，
@@ -359,7 +359,23 @@ export function parseBuiltinUsageReports(payload: unknown): UsageReport[] {
         const rawLimits = item.limits;
         if (typeof provider !== "string" || provider.length === 0) continue;
         if (!Array.isArray(rawLimits)) continue;
-        const limits = rawLimits.filter(isUsableLimit) as UsageReport["limits"];
+        // 内置报告的 percent 窗口可能只给 used/usedFraction 而无 limit/remaining
+        // （如 alibaba-token-plan）：按百分制补全，与 openai-codex 报告的 percent 口径一致。
+        const limits = (
+            rawLimits.filter(isUsableLimit) as UsageReport["limits"]
+        ).map(limit =>
+            finiteNumber(limit.amount.limit as unknown) === undefined
+                ? {
+                      ...limit,
+                      amount: {
+                          ...limit.amount,
+                          limit: 100,
+                          remaining: 100 - limit.amount.used,
+                          remainingFraction: 1 - limit.amount.usedFraction,
+                      },
+                  }
+                : limit,
+        );
         if (limits.length === 0) continue;
 
         const resetCredits = asRecord(item.resetCredits);
