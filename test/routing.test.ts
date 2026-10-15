@@ -1,11 +1,12 @@
 import { describe, expect, test } from "bun:test";
+import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
 
 import { readBuiltinUsageReport, sourceKey } from "../src/index.js";
 
 function fakePi(stdout: string, code = 0) {
   return {
     exec: async () => ({ code, stdout }),
-  } as never;
+  } as unknown as ExtensionAPI;
 }
 
 function reportJson(provider: string): string {

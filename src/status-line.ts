@@ -4,6 +4,10 @@ const BAR_WIDTH = 10;
 const FULL = "▰";
 const EMPTY = "▱";
 
+// 内置报告的窗口 id 偏冗长（alibaba-token-plan 用 "monthly"），与智谱路径的 `1mo` / `5h` / `7d` 风格对齐。
+// OMP 自身的卡片/`omp usage` 面板用的是内置 provider 的标签，扩展改不了（见 AGENTS.md）。
+const WINDOW_ID_ALIASES: Record<string, string> = { monthly: "1mo" };
+
 /** renderUsageBar 需要的最小主题面（ctx.ui.theme 的结构子集，便于测试 stub）。 */
 export interface UsageTheme {
   fg(color: "success" | "warning" | "error" | "dim", text: string): string;
@@ -31,7 +35,7 @@ export function formatResetIn(
 /**
  * 渲染额度条（单行紧凑）：`5h ▰▰▰▰▰▰▱▱▱▱ 64% 2h14m  7d ▰▰▰▱▱▱▱▱▱▱ 31% 4d6h`。
  * 颜色取主题语义色（success/warning/error），reset 倒计时用 dim。
- * 两个窗口都缺失时返回 undefined（不显示）。
+ * 没有任何可显示内容时返回 undefined（不显示该 widget）。
  */
 export function renderUsageBar(
   report: UsageReport,
@@ -49,7 +53,8 @@ export function renderUsageBar(
       fraction > 0.85 ? "error" : fraction >= 0.6 ? "warning" : "success";
     const bar =
       theme.fg(color, FULL.repeat(filled)) + EMPTY.repeat(BAR_WIDTH - filled);
-    const segment = `${limit.window.id} ${bar} ${theme.fg(color, `${Math.round(fraction * 100)}%`)}`;
+    const windowId = WINDOW_ID_ALIASES[limit.window.id] ?? limit.window.id;
+    const segment = `${windowId} ${bar} ${theme.fg(color, `${Math.round(fraction * 100)}%`)}`;
     const reset = formatResetIn(limit.window.resetsAt, now);
     parts.push(reset ? `${segment} ${theme.fg("dim", reset)}` : segment);
   }

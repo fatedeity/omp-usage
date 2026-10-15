@@ -9,7 +9,7 @@
 当前已接入：
 
 - `zhipu-coding-plan`：智谱 BigModel CN / GLM Coding Plan。
-- `alibaba-token-plan`：阿里云百炼 Token Plan（Qwen 系模型）。额度仅百炼 console session 可查，OMP 内置了它的 usage provider，本扩展直接复用 `omp usage` 内置报告，**不自写抓取**；使用前需执行一次 `omp login alibaba-token-plan` 完成浏览器登录。
+- `alibaba-token-plan`：阿里云百炼 Token Plan（Qwen 系模型）。额度仅百炼 console session 可查，OMP 内置了它的 usage provider，本扩展直接复用 `omp usage` 内置报告，**不自写抓取**；使用前需执行 `omp login alibaba-token-plan` 完成浏览器登录，该登录态有有效期，过期后内置报告缺席、额度条静默隐藏，重新 login 即可恢复。
 
 后续 provider 有两条路：OMP 已内置 usage provider 的（如 `alibaba-token-plan`、`openai-codex`）只需在 `src/index.ts` 分流中接入内置报告分支；未内置的要在 `src/provider-registry.ts` 注册并分别实现额度接口和认证方式。不能假设所有 provider 都使用相同的 API、凭据或额度字段。
 
@@ -28,7 +28,7 @@ Authorization: Bearer <API 密钥>
 - 7 天 Token 或额度；
 - 月度工具调用额度；
 - 额度重置时间；
-- 智谱返回的套餐等级。
+- 套餐等级：由 OMP 的 `omp usage` 面板消费本扩展报告里的 `metadata.planType` 显示为 `plan: lite`。
 
 扩展不会记录或持久化 API 密钥。认证仍然使用 OMP 为对应 provider 解析出的已有凭据。
 
@@ -57,6 +57,8 @@ omp --extension /path/to/omp-usage
 - OpenAI 系模型 → 显示内置账号（如 `openai-codex` 的 ChatGPT 订阅）的额度窗口（当前接口为 `30d` 月窗），数据来自 `omp usage --json --redact`，账号字段被剥离；
 - 阿里百炼模型（`alibaba-token-plan`）→ 同样走 `omp usage --json --redact`，显示内置解析出的 5 小时 / 7 天 / 月度 Token Plan 窗口（需先 `omp login alibaba-token-plan`，未登录时额度条隐藏）；
 - 其他 provider 暂无数据源，额度条隐藏。
+
+窗口名在额度条里统一为 `5h` / `7d` / `1mo`（内置报告的 `monthly` 会被改名）。注意：**OMP 自带的额度卡片与 `omp usage` 面板显示的是 OMP 内置 provider 的原始标签**（alibaba 显示 `Monthly Credits`），不由本扩展控制，扩展也改不了。
 
 切换模型后最多 2 秒额度条自动换源；启动/切换会话和每轮对话结束也会触发刷新。
 

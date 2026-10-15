@@ -78,8 +78,9 @@ export function nextBackoffMs(consecutiveFailures: number): number {
 
 // alibaba-token-plan 的额度只有百炼 console session 可查，OMP 内置 usage provider
 // （`omp login alibaba-token-plan` 后可用）已实现解析，走内置报告分支即可。
-export const ALIBABA_PROVIDER_ID = "alibaba-token-plan";
-type SourceKey = typeof PROVIDER_ID | "alibaba-token-plan" | "openai";
+const ALIBABA_PROVIDER_ID = "alibaba-token-plan";
+
+type SourceKey = typeof PROVIDER_ID | typeof ALIBABA_PROVIDER_ID | "openai";
 type CacheEntry = { report: UsageReport; fetchedAt: number };
 // 按数据源分桶缓存；键集合固定（三个源），值运行时填充。
 const reportCache: Partial<Record<SourceKey, CacheEntry>> = {};

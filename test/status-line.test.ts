@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
 
-import { parseZhipuUsage, type UsageReport } from "../src/usage";
+import { parseZhipuUsage, type UsageReport } from "../src/usage.js";
 import {
   formatResetIn,
   renderUsageBar,
   type UsageTheme,
-} from "../src/status-line";
+} from "../src/status-line.js";
 
 const fetchedAt = 1_800_000_000_000;
 
@@ -166,6 +166,42 @@ describe("renderUsageBar", () => {
     expect(
       stripAnsi(renderUsageBar(report as UsageReport, stubTheme, fetchedAt) ?? ""),
     ).toBe("1mo ▰" + "▱".repeat(9) + " 10%");
+  });
+
+  test("内置报告的 monthly 窗口在额度条上显示为 1mo", () => {
+    const report: UsageReport = {
+      provider: "alibaba-token-plan",
+      fetchedAt,
+      limits: [
+        {
+          id: "credits:monthly",
+          label: "Monthly Credits",
+          scope: {
+            provider: "alibaba-token-plan",
+            windowId: "monthly",
+            shared: true,
+          },
+          window: {
+            id: "monthly",
+            label: "Monthly Credits",
+            resetsAt: fetchedAt + 2 * 86_400_000,
+          },
+          amount: {
+            used: 19.3,
+            limit: 100,
+            remaining: 80.7,
+            usedFraction: 0.193,
+            remainingFraction: 0.807,
+            unit: "percent",
+          },
+          status: "ok",
+        },
+      ],
+    };
+
+    expect(stripAnsi(renderUsageBar(report, stubTheme, fetchedAt) ?? "")).toBe(
+      "1mo ▰▰" + "▱".repeat(8) + " 19% 2d",
+    );
   });
 });
 

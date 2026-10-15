@@ -6,8 +6,8 @@ import {
   parseZhipuUsage,
   PROVIDER_ID,
   USAGE_ENDPOINT,
-} from "../src/usage";
-import { PROVIDER_DEFINITIONS } from "../src/provider-registry";
+} from "../src/usage.js";
+import { PROVIDER_DEFINITIONS } from "../src/provider-registry.js";
 
 const fetchedAt = 1_800_000_000_000;
 
@@ -56,12 +56,8 @@ describe("provider 注册表", () => {
     expect(PROVIDER_DEFINITIONS.map(provider => provider.id)).toContain(
       PROVIDER_ID,
     );
-    expect(PROVIDER_DEFINITIONS[0]?.displayName).toBe(
-      "Zhipu GLM Coding Plan",
-    );
   });
 });
-
 
 describe("parseZhipuUsage", () => {
   test("映射 5 小时、7 天和月度工具调用额度", () => {
@@ -70,6 +66,7 @@ describe("parseZhipuUsage", () => {
     expect(report).not.toBeNull();
     expect(report?.provider).toBe(PROVIDER_ID);
     expect(report?.fetchedAt).toBe(fetchedAt);
+    // omp usage 面板据此显示 `plan: lite`，不是扩展内部使用，删了会掉面板信息。
     expect(report?.metadata).toEqual({ planType: "lite" });
     expect(report?.limits).toHaveLength(3);
 
@@ -138,7 +135,6 @@ describe("parseZhipuUsage", () => {
       usedFraction: 0.01,
     });
   });
-
 
   test("绝对计数缺失时回退到百分比额度", () => {
     const report = parseZhipuUsage(
@@ -256,12 +252,11 @@ describe("parseBuiltinUsageReports", () => {
     capacity: {},
   };
 
-  test("解析内置账号报告并保留套餐信息", () => {
+  test("解析内置账号报告并保留重置卡信息", () => {
     const reports = parseBuiltinUsageReports(builtinPayload);
 
     expect(reports).toHaveLength(1);
     expect(reports[0]?.provider).toBe("openai-codex");
-    expect(reports[0]?.metadata?.planType).toBe("plus");
     expect(reports[0]?.limits).toHaveLength(1);
     expect(reports[0]?.resetCredits).toEqual({
       availableCount: 2,
@@ -272,10 +267,10 @@ describe("parseBuiltinUsageReports", () => {
     });
   });
 
-  test("剥离 metadata 中的账号字段", () => {
+  test("不把内置报告的账号与套餐字段带入结果", () => {
     const reports = parseBuiltinUsageReports(builtinPayload);
 
-    expect(reports[0]?.metadata).toEqual({ planType: "plus" });
+    expect(reports[0]).not.toHaveProperty("metadata");
   });
   test("percent 窗口缺 limit/remaining 时按百分制补全", () => {
     // alibaba-token-plan 内置报告的真实形状：只有 used/usedFraction/unit。

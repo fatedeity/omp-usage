@@ -10,8 +10,8 @@ OMP 扩展，用于在 OMP 会话中显示多个 provider 的额度。数据源�
 | --- | --- |
 | `src/index.ts` | 扩展入口。向 `ExtensionAPI` 注册 provider 与状态栏额度条 widget；按 `ctx.model.provider` 分流数据源：智谱模型走注册表 `fetchUsage`，openai 系和 `alibaba-token-plan` 模型走 `omp usage --json --redact` 内置账号报告（报告选择精确同名优先、`openai`→`openai-codex` 前缀匹配，绝不跨 provider 兜底）；凭据通过子进程 `omp token <providerId> --raw` 读取，只驻留内存。额度按数据源本地缓存 5 分钟，失败（包括 429）指数退避（60 秒起步、封顶 30 分钟）；2 秒轮询检查 provider 变化和缓存过期 |
 | `src/status-line.ts` | 额度条渲染：单行紧凑条（窗口标签 + 10 格条 + 百分比 + reset 倒计时），并显示内置账号报告中的可用重置卡数/最近到期时间；颜色取 OMP 主题语义色（success/warning/error/dim） |
-| `src/provider-registry.ts` | 注册表。`UsageProviderDefinition`（`id` / `displayName` / `baseUrl` / `api` / `fetchUsage`），OMP 未内置 usage 的新 provider 从这里开始 |
-| `src/usage.ts` | 智谱领域逻辑：`parseZhipuUsage`（解析）、`fetchZhipuUsage`（请求）；`parseBuiltinUsageReports` 解析 `omp usage --json` 内置账号报告，保留 planType 与重置卡数量/到期时间，丢弃账号字段 |
+| `src/provider-registry.ts` | 注册表。`UsageProviderDefinition`（`id` / `baseUrl` / `api` / `fetchUsage`），OMP 未内置 usage 的新 provider 从这里开始 |
+| `src/usage.ts` | 智谱领域逻辑：`parseZhipuUsage`（解析）、`fetchZhipuUsage`（请求）；`parseBuiltinUsageReports` 解析 `omp usage --json` 内置账号报告，只取额度窗口与重置卡数量/到期时间，账号与套餐字段一律丢弃 |
 | `test/usage.test.ts`、`test/status-line.test.ts` | 回归测试，全部使用确定性夹具和注入的 `fetch` |
 | `test/refresh.test.ts` | 额度刷新退避策略测试 |
 | `test/routing.test.ts` | 数据源分流与内置报告选择测试（mock `pi.exec`） |
@@ -33,6 +33,8 @@ OMP 扩展，用于在 OMP 会话中显示多个 provider 的额度。数据源�
 - **凭据安全**：API 密钥永不持久化、不写入日志或通知。
 - **测试**：解析或渲染行为的任何变更必须补回归测试；测试绝不请求真实智谱接口。
 - **代码风格**：TypeScript `strict` / ES2022 / ESM，相对导入带 `.js` 后缀。`src/usage.ts` 为 4 空格缩进，其余文件为 2 空格，编辑时遵循所在文件现状。
+- **注册表报告是给 OMP 消费的**：`UsageReport` 里 `metadata.planType`（面板显示 `plan: lite`）、`limit.label`、`amount.used/limit/unit`、`window.resetsAt` 都由 omp usage 面板直接读取，删掉会掉面板信息——判定"未使用"前先跑 `omp usage` 看实际输出。
+- **OMP 卡片/面板的文本扩展改不了**：alibaba 卡片与 `omp usage` 面板里的 `Monthly Credits` 是 OMP 内置 provider 的标签。实测注册同名 provider 的 `usage` 并不替换它，而是**叠加**一条 meter（面板出现两条 meter、capacity 按凭据重复计数、`plan` 等归属错乱），所以别走这条路；命名统一只在我们自己的额度条里做（`src/status-line.ts` 的 `WINDOW_ID_ALIASES`）。
 
 ## 常用命令
 

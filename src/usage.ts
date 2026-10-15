@@ -39,6 +39,8 @@ export type UsageReport = {
         availableCount: number;
         credits?: { expiresAt?: string }[];
     };
+    // omp usage 面板直接消费注册表 provider 的这份报告：metadata.planType 会显示成 `plan: lite`，
+    // 删掉它面板就不再显示套餐等级。
     metadata?: {
         planType?: string;
     };
@@ -181,7 +183,6 @@ function buildAmount(
         total !== undefined || current !== undefined || reportedRemaining !== undefined;
     const percentage = normalizePercentage(item.percentage, !hasAbsoluteValues);
 
-
     if (!hasAbsoluteValues && percentage === undefined) return null;
 
     const limit =
@@ -301,30 +302,6 @@ const UNIT_LABELS: Record<UsageAmount["unit"], string> = {
     percent: "%",
 };
 
-export function formatUsageReport(
-    report: UsageReport,
-    title = "额度",
-): string {
-    const plan = report.metadata?.planType ?? "未知";
-    const formatNumber = new Intl.NumberFormat("zh-CN");
-    const lines = [`${title}（${plan}）`];
-
-    for (const limit of report.limits) {
-        const amount = limit.amount;
-        const used = formatNumber.format(amount.used);
-        const total = formatNumber.format(amount.limit);
-        const percent = `${(amount.usedFraction * 100).toFixed(1)}%`;
-        const reset = limit.window.resetsAt
-            ? new Date(limit.window.resetsAt).toLocaleString("zh-CN")
-            : "未知";
-        lines.push(
-            `${limit.label}：${used} / ${total} ${UNIT_LABELS[amount.unit]}（已用 ${percent}），重置时间：${reset}`,
-        );
-    }
-
-    return lines.join("\n");
-}
-
 function isUsableLimit(value: unknown): boolean {
     const item = asRecord(value);
     const amount = asRecord(item?.amount);
@@ -340,10 +317,9 @@ function isUsableLimit(value: unknown): boolean {
     );
 }
 
-
 /**
- * 解析 `omp usage --json` 的内置账号报告。仅保留 planType 与可用重置卡数量/到期时间，
- * 丢弃 metadata 里的账号字段（email、accountId 等）。
+ * 解析 `omp usage --json` 的内置账号报告。仅保留可用重置卡数量/到期时间，
+ * metadata 里的账号字段（email、accountId 等）与套餐字段都不带入结果。
  * 载荷非法或没有任何可用报告时返回空数组。
  */
 export function parseBuiltinUsageReports(payload: unknown): UsageReport[] {
@@ -386,7 +362,6 @@ export function parseBuiltinUsageReports(payload: unknown): UsageReport[] {
                   return typeof expiresAt === "string" ? [{ expiresAt }] : [];
               })
             : undefined;
-        const metadata = asRecord(item.metadata);
         reports.push({
             provider,
             fetchedAt: finiteNumber(item.fetchedAt) ?? 0,
@@ -400,9 +375,6 @@ export function parseBuiltinUsageReports(payload: unknown): UsageReport[] {
                           ...(credits ? { credits } : {}),
                       },
                   }
-                : {}),
-            ...(typeof metadata?.planType === "string"
-                ? { metadata: { planType: metadata.planType } }
                 : {}),
         });
     }
